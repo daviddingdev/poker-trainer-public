@@ -33,14 +33,40 @@ The core discipline, and the reason this exists rather than a spreadsheet:
 
 ## The loop
 
+```mermaid
+flowchart LR
+  C["capture<br/><small>shorthand, at the table</small>"]:::in
+  PA["parse<br/><small>positions · actions · board · sizing</small>"]:::code
+  R["review<br/><small>decision quality, not result</small>"]:::think
+  Q{"enough hands<br/>to claim a leak?"}:::gate
+  N["say so:<br/><i>not enough hands</i>"]:::hold
+  DR["drill the spot<br/><small>generated from your own hands</small>"]:::think
+  M["re-measure<br/><small>against later hands</small>"]:::code
+
+  C --> PA --> R --> Q
+  Q -->|"no"| N --> C
+  Q -->|"yes"| DR --> M --> R
+
+  classDef in fill:#5c4a1f,stroke:#fab219,color:#fdf3d9
+  classDef code fill:#1f3a5c,stroke:#3987e5,color:#e8f0fb
+  classDef think fill:#3b2a5c,stroke:#9d7be8,color:#f0eafd
+  classDef gate fill:#2e2e2c,stroke:#8a897f,color:#c3c2b7
+  classDef hold fill:#5c1f1f,stroke:#e53987,color:#fbe8f0
 ```
-capture → tag → review → drill the leak → re-measure
-```
+
+The `not enough hands` branch is the point of the whole system. Most tracking software
+draws a trend line through noise; this one is built to refuse.
 
 Sessions and tournaments are logged with the conditions attached (stakes, structure,
 table dynamics), so review can ask whether a pattern belongs to a spot or to a game type.
 Study output feeds a drill list; the drill list is re-measured against later hands rather
 than assumed fixed.
+
+## The code
+
+Nine files in [`code/`](code/), copied verbatim: the shorthand parser, the equity engine,
+the push/fold and equity-matrix solvers, the postflop validator, and the test suite. See
+[`code/README.md`](code/README.md).
 
 ## Tooling
 
