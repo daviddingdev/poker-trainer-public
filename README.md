@@ -77,4 +77,4 @@ the push/fold and equity-matrix solvers, the postflop validator, and the test su
 - The capture front end is a phone app; results and study notes live as plain files that
   are diffable and greppable, so the history stays readable in ten years.
 
-_Last updated September 2026._
+_Last updated October 2026._
