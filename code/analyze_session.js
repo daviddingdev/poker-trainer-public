@@ -13,9 +13,6 @@ window.Poker.init(window.POKER_DATA);
 const P = window.Poker;
 const store = require(path.join(__dirname, '..', 'backups', 'store.json'));
 
-const sid = process.argv.slice(2).find(a => !a.startsWith('--')) || 'acr:t:35259189';   // first non-flag arg
-const T = store.tourneys.find(t => t.id === sid);
-const hands = store.hands.filter(h => h.sessionId === sid).sort((a, b) => (a.ts || 0) - (b.ts || 0));
 const num = v => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
 const net = h => num(h.amount) * (h.sign === '-' ? -1 : 1);
 const DEPTHS = [10, 20, 30, 50, 100];
@@ -58,6 +55,9 @@ function gradePre(h) {
       const got = heroFirst.act === 'open' ? 'raise' : heroFirst.act === 'limp' ? 'limp' : heroFirst.act;
       return { scen: 'SB open', depth, ok: got === want, want, got, leak: got !== want && (want === 'fold' || (want === 'limp' && got === 'raise')) ? 'LOOSE' : got !== want ? 'tight' : 'ok' };
     }
+    // BB checks its option behind limps (or an SB complete): a free check, not an open.
+    // A BB raise over limps falls through and is still graded (as an iso).
+    if (h.pos === 'bb' && heroFirst.act === 'x') return { scen: 'BB check', depth, ok: true, want: 'check', got: 'check', leak: 'ok' };
     if (heroFirst.act === 'limp') return { scen: 'limp', depth, ok: false, want: 'open/fold', got: 'limp', leak: 'limp' };
     const inRange = P.openIn(h.pos, depth, label);
     return { scen: 'open', depth, ok: inRange, want: inRange ? 'open' : 'fold', got: 'open', leak: inRange ? 'ok' : 'LOOSE' };
@@ -201,13 +201,6 @@ function gradePost(h, g) {
   return { flags, foldsFaced, correctFolds };
 }
 
-// ---- run ----
-console.log('=== ' + (T ? T.event : sid) + ' ===');
-if (T) console.log('finish ' + T.place + '/' + T.field + ' · cash $' + T.cash + ' + KO $' + (T.bounty || 0) + ' − buyin $' + T.buyin + '×' + (T.entries || 1) + ' = net $' + (num(T.cash) + num(T.bounty) - num(T.buyin) * Math.max(num(T.entries), 1)).toFixed(2));
-console.log(hands.length + ' played hands\n');
-
-const rows = hands.map(h => { const g = gradePre(h); return { h, g, post: gradePost(h, g), net: net(h), ai: /\bjam\b/.test(h.action) }; });
-
 // render a postflop flag as readable text (used by both report + --tag)
 function flagText(f) {
   if (f.k === 'light call') return f.street + ' light call: ' + f.eq + '% eq vs ' + f.price + '% price';
@@ -216,6 +209,24 @@ function flagText(f) {
   if (f.k === 'raise thin') return f.street + ' bluff-raise: ' + (f.note || 'weak') + ' (' + f.eq + '% eq)';
   return f.street + ' ' + f.k;
 }
+// Grade every hand of one session (shared with tools/leak_report.js).
+function analyze(hands) {
+  return hands.map(h => { const g = gradePre(h); return { h, g, post: gradePost(h, g), net: net(h), ai: /\bjam\b/.test(h.action) }; });
+}
+const sessionHands = sid => store.hands.filter(h => h.sessionId === sid).sort((a, b) => (a.ts || 0) - (b.ts || 0));
+module.exports = { store, analyze, sessionHands, flagText, gradePre, gradePost, parsePre, net };
+
+// ---- run ----
+if (require.main === module) {
+const sid = process.argv.slice(2).find(a => !a.startsWith('--')) || 'acr:t:35259189';   // first non-flag arg
+const T = store.tourneys.find(t => t.id === sid);
+const hands = sessionHands(sid);
+console.log('=== ' + (T ? T.event : sid) + ' ===');
+if (T) console.log('finish ' + T.place + '/' + T.field + ' · cash $' + T.cash + ' + KO $' + (T.bounty || 0) + ' − buyin $' + T.buyin + '×' + (T.entries || 1) + ' = net $' + (num(T.cash) + num(T.bounty) - num(T.buyin) * Math.max(num(T.entries), 1)).toFixed(2));
+console.log(hands.length + ' played hands\n');
+
+const rows = analyze(hands);
+
 console.log('--- POSTFLOP LEAKS (bet/raise/call decisions that look like spew) ---');
 const postRows = rows.filter(r => r.post && r.post.flags && r.post.flags.length);
 if (!postRows.length) console.log('  (none — every postflop bet, raise, and call had the equity for the price)');
@@ -270,4 +281,5 @@ if (process.argv.includes('--tag')) {
   });
   require('fs').writeFileSync('/tmp/review-tags.json', JSON.stringify({ hands: tagged }));
   console.log('\n--tag: ' + tagged.length + ' hands tagged → /tmp/review-tags.json (POST to /api/backup to surface in app)');
+}
 }
