@@ -11,7 +11,8 @@ require(path.join(__dirname, 'app/poker.js'));
 require(path.join(__dirname, 'app/postflop.js'));
 window.Poker.init(window.POKER_DATA);
 const P = window.Poker;
-const store = require(path.join(__dirname, '..', 'backups', 'store.json'));
+// POKER_STORE points the analyzer (and leak_report.js) at a fixture store; default is the live one.
+const store = require(process.env.POKER_STORE ? path.resolve(process.env.POKER_STORE) : path.join(__dirname, '..', 'backups', 'store.json'));
 
 const num = v => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
 const net = h => num(h.amount) * (h.sign === '-' ? -1 : 1);
