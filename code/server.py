@@ -27,9 +27,11 @@ Run: python3 tools/server.py --bind <tailnet-ip> --port 8088
 No auth — the tailnet IS the auth boundary. Never bind publicly.
 """
 import argparse
+import errno
 import glob
 import json
 import os
+import sys
 import time
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
@@ -199,11 +201,27 @@ class Handler(SimpleHTTPRequestHandler):
         })
 
 
+def bind_or_wait(addr, port):
+    """Bind the server, or exit 1 with ONE line when the address is not assigned yet.
+
+    At boot pokerlog can start before tailscale has the tailnet IP; the bind then fails with
+    EADDRNOTAVAIL (errno 99). That is not a fault: the unit's Restart=always retries in 10 s.
+    So it says so in one journal line instead of a traceback. Every other OSError still raises."""
+    try:
+        return ThreadingHTTPServer((addr, port), Handler)
+    except OSError as e:
+        if e.errno != errno.EADDRNOTAVAIL:
+            raise
+        print("waiting for %s (not assigned yet; systemd retries in 10 s)" % addr,
+              file=sys.stderr, flush=True)
+        sys.exit(1)
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--bind", default="127.0.0.1")
     ap.add_argument("--port", type=int, default=8088)
     args = ap.parse_args()
-    srv = ThreadingHTTPServer((args.bind, args.port), Handler)
+    srv = bind_or_wait(args.bind, args.port)
     print("serving %s on http://%s:%d (canonical -> %s)" % (APP_DIR, args.bind, args.port, STORE))
     srv.serve_forever()

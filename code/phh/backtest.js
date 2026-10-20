@@ -63,5 +63,5 @@ function run(dir, limit) {
   console.log('  of engine FOLDS: ' + foldWasLoser + ' were losers (good) / ' + foldWasWinner + ' were winners (folded the best hand) → ' + pct(foldWasLoser, foldWasLoser + foldWasWinner) + ' correct');
 }
 
-if (require.main === module) run(process.argv[2] || '/home/user/poker-data/phh/data/pluribus', +(process.argv[3] || 0));
+if (require.main === module) run(require('./phh_corpus').pluribusDir(process.argv[2]), +(process.argv[3] || 0));
 module.exports = { run };

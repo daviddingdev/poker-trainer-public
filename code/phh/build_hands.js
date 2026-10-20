@@ -78,7 +78,7 @@ function buildHand(h, id) {
 }
 
 if (require.main === module) {
-  const dir = process.argv[2] || '/home/user/poker-data/phh/data/pluribus';
+  const dir = require('./phh_corpus').pluribusDir(process.argv[2]);
   const target = +(process.argv[3] || 1500);
   const files = [];
   (function w(d) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) w(p); else if (e.name.endsWith('.phh')) files.push(p); } })(dir);
