@@ -139,7 +139,10 @@ function gradePost(h, g) {
   // hero IP vs the (single) villain for HU streets
   const heroIP = (PORD[h.pos] ?? 9) > (PORD[vills[0]] ?? 0);
   let pot = 4, board = [], flags = [], heroBets = 0, foldsFaced = 0, correctFolds = 0;
-  (segs[0].match(/(?:open|3b|4b|r)([\d.]+)/g) || []).forEach(m => { pot += 2 * parseFloat(m.replace(/[a-z]/g, '')); });
+  // heads-up to the flop: the last raise size goes in twice (it already holds the earlier raises:
+  // 'open2 3b5.5 c' is 11bb, not 15). The size only: '3b6.2' is 6.2, not 36.2.
+  const preSizes = [...segs[0].matchAll(/(?:open|3b|4b|r)([\d.]+)/g)].map(m => parseFloat(m[1]));
+  if (preSizes.length) pot += 2 * preSizes[preSizes.length - 1];
 
   for (let i = 1; i < segs.length; i++) {
     const m = segs[i].match(/^\(([^)]*)\)\s*(.*)$/); if (!m) continue;
@@ -187,7 +190,7 @@ function gradePost(h, g) {
         } else if (a.act === 'f' && facing > 0) {             // hero FOLDS facing a bet — was it too tight?
           foldsFaced++;
           const price = facing / (pot + facing);
-          if (eq >= price + 0.05) flags.push({ k: 'tight fold', street: st, board: board.join(''), eq: eqp, price: Math.round(price * 100), note: cls.label });
+          if (eq >= price + 0.05) flags.push({ k: 'tight fold', street: st, board: board.join(''), eq: eqp, price: Math.round(price * 100), note: cls.label, pot, toCall: facing });   // pot includes the bet faced
           else correctFolds++;
         }
       }
