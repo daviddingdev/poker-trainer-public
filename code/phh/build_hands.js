@@ -3,7 +3,9 @@
 // so the app can walk it through every street: you call each spot, get graded vs the engine,
 // see what they really did, and the hand keeps following reality. Heads-up-from-the-flop only.
 // Prioritizes multi-decision, 3-bet, big-pot hands. → tools/app/realhands.json
-//   node tools/phh_build_hands.js [dir] [target]
+//   node tools/phh_build_hands.js [dir] [target] [--seed N] [--out PATH]
+// Seeded (phh_corpus.seedRandom), so the same seed and corpus give the same file. Default
+// target 1200, the size the app has served since 2026-07-13 (that build ran with target 1200).
 'use strict';
 const fs = require('fs');
 const path = require('path');
@@ -78,8 +80,11 @@ function buildHand(h, id) {
 }
 
 if (require.main === module) {
-  const dir = require('./phh_corpus').pluribusDir(process.argv[2]);
-  const target = +(process.argv[3] || 1500);
+  const corpus = require('./phh_corpus');
+  const args = corpus.builderArgs(process.argv.slice(2));
+  const dir = corpus.pluribusDir(args.dir);
+  const target = args.target || 1200;
+  console.log('seed ' + corpus.seedRandom(args.seed));
   const files = [];
   (function w(d) { for (const e of fs.readdirSync(d, { withFileTypes: true })) { const p = path.join(d, e.name); if (e.isDirectory()) w(p); else if (e.name.endsWith('.phh')) files.push(p); } })(dir);
   // gather candidate hands (cheap structural pass — no engine yet), then weighted-sample, then bake
@@ -119,7 +124,7 @@ if (require.main === module) {
     if (hand) hands.push(hand);
     if (hands.length % 200 === 0 && hands.length) process.stdout.write('  baked ' + hands.length + '/' + target + '\r');
   }
-  const out = path.join(__dirname, 'app', 'realhands.json');
+  const out = args.out || path.join(__dirname, 'app', 'realhands.json');
   fs.writeFileSync(out, JSON.stringify(hands));
   const dec = hands.reduce((a, h) => a + h.decisions.length, 0);
   const multi = hands.filter(h => h.decisions.length >= 2).length;
