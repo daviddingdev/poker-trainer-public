@@ -284,6 +284,6 @@ if (process.argv.includes('--tag')) {
     else if (r.h.review) { rec.review = ''; rec.up = nowMs; tagged.push(rec); }   // clear stale tags
   });
   require('fs').writeFileSync('/tmp/review-tags.json', JSON.stringify({ hands: tagged }));
-  console.log('\n--tag: ' + tagged.length + ' hands tagged → /tmp/review-tags.json (POST to /api/backup to surface in app)');
+  console.log('\n--tag: ' + tagged.length + ' hands tagged → /tmp/review-tags.json (POST to /api/backup with -H "Origin: https://<host>" to surface in app)');
 }
 }

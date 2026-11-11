@@ -25,6 +25,17 @@ Storage:
 
 Run: python3 tools/server.py --bind <tailnet-ip> --port 8088
 No auth — the tailnet IS the auth boundary. Never bind publicly.
+
+Two refusals keep that boundary true even if a Funnel is ever switched on for :443
+(maintenance memo 2026-11-10; Funnel traffic arrives through the same `tailscale serve`
+proxy, so a peer-address check can't tell it apart):
+  - any request carrying `Tailscale-Funnel-Request` (tailscaled adds it to Funnel traffic)
+    gets 403 before any handler runs. X-Forwarded-For is NOT refused: serve's own tailnet
+    traffic carries it.
+  - a POST needs an `Origin` whose host matches the request's Host (or X-Forwarded-Host).
+    The app's fetch() always sends one; a cross-site page can't forge it. A bare curl
+    must add `-H "Origin: https://<host>"`.
+tools/test_server.py pins both.
 """
 import argparse
 import errno
@@ -33,6 +44,7 @@ import json
 import os
 import sys
 import time
+from urllib.parse import urlsplit
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
@@ -43,6 +55,7 @@ LEGACY_LATEST = os.path.join(BACKUP_DIR, "pokerlog-latest.json")
 ENTITIES = ("hands", "tourneys", "sessions")
 SNAP_KEEP = 60
 MAX_BYTES = 8 * 1024 * 1024
+FUNNEL_HEADER = "Tailscale-Funnel-Request"
 
 
 def atomic_write(path, data):
@@ -160,6 +173,32 @@ class Handler(SimpleHTTPRequestHandler):
 
     def log_message(self, fmt, *args):
         pass
+
+    def refusal(self):
+        """Why this request is refused (a short reason), or None to serve it."""
+        if self.headers.get(FUNNEL_HEADER) is not None:
+            return "funnel"
+        if self.command == "POST":
+            origin = (self.headers.get("Origin") or "").strip()
+            o = urlsplit(origin) if origin and origin != "null" else None
+            hosts = {(self.headers.get(h) or "").strip().lower()
+                     for h in ("Host", "X-Forwarded-Host")} - {""}
+            if not o or o.scheme not in ("http", "https") or o.netloc.lower() not in hosts:
+                return "origin"
+        return None
+
+    def parse_request(self):
+        # Runs before every do_* method, so a refused request never reaches a handler.
+        if not super().parse_request():
+            return False
+        why = self.refusal()
+        if why is None:
+            return True
+        print("refused %s %s (%s)" % (self.command, self.path.split("?")[0][:80], why),
+              file=sys.stderr, flush=True)
+        self.close_connection = True
+        self._json(403, {"error": "forbidden", "why": why})
+        return False
 
     def _json(self, code, obj):
         body = json.dumps(obj).encode()
